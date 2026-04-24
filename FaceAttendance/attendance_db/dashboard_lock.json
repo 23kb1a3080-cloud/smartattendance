@@ -1,0 +1,13 @@
+{
+  "master_key_hash": "db3a75d284a74a6cf4d6957fa4b97813dba4fe4be6d957413c3e3d23660575b3",
+  "access_attempts": 0,
+  "last_access": "2026-04-24T18:11:40.626845",
+  "locked_until": null,
+  "authorized_sessions": [
+    {
+      "token": "9ae646f7f799b4e3",
+      "created": "2026-04-24T18:11:40.626845",
+      "expires": "2026-04-24T20:11:40.626845"
+    }
+  ]
+}
