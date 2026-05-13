@@ -11,7 +11,7 @@ import os
 from app.config import settings
 from app.database import Base, engine
 from app import models
-from app.routes import auth, students, attendance, dashboard
+from app.routes import auth, students, attendance, dashboard, face
 
 # ─── Create all DB tables ─────────────────────────────────────────────────────
 Base.metadata.create_all(bind=engine)
@@ -57,6 +57,7 @@ app.include_router(auth.router)
 app.include_router(students.router)
 app.include_router(attendance.router)
 app.include_router(dashboard.router)
+app.include_router(face.router)
 
 # ─── Startup Event ────────────────────────────────────────────────────────────
 @app.on_event("startup")

@@ -2,7 +2,7 @@
 Pydantic Schemas for request/response validation
 Covers: Data validation, serialization, API contracts
 """
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, field_validator
 from typing import Optional, List
 from datetime import datetime
 
@@ -91,9 +91,9 @@ class StudentOut(BaseModel):
     id: int
     roll_no: str
     name: str
-    email: Optional[str]
-    phone: Optional[str]
-    year: Optional[int]
+    email: Optional[str] = None        # fix: default None, not required
+    phone: Optional[str] = None        # fix: default None, not required
+    year: Optional[int] = None         # fix: default None, not required
     is_active: bool
     face_registered: bool
     registered_date: datetime
@@ -122,7 +122,7 @@ class AttendanceOut(BaseModel):
     date: str
     time: str
     status: str
-    confidence: Optional[float]
+    confidence: Optional[float] = None   # fix: default None
     verification_method: str
 
     class Config:
@@ -150,9 +150,9 @@ class SystemLogOut(BaseModel):
     id: int
     timestamp: datetime
     event_type: str
-    roll_no: Optional[str]
-    description: Optional[str]
-    status: Optional[str]
+    roll_no: Optional[str] = None        # fix: default None
+    description: Optional[str] = None   # fix: default None
+    status: Optional[str] = None        # fix: default None
 
     class Config:
         from_attributes = True

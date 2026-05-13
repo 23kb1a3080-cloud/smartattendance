@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Face Attendance — Smart Attendance</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    .face-layout {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 1.5rem;
+      align-items: start;
+    }
+    .camera-box {
+      background: var(--dark-card);
+      border: 1px solid var(--dark-border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+    .camera-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--dark-border);
+    }
+    .camera-wrapper {
+      position: relative;
+      background: #000;
+      aspect-ratio: 4/3;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    #webcam {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+      display: none;
+    }
+    #overlay-canvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      transform: scaleX(-1);
+      display: none;
+    }
+    .camera-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      color: var(--text-muted);
+      height: 100%;
+      min-height: 300px;
+    }
+    .camera-placeholder .cam-icon { font-size: 4rem; }
+    .status-bar {
+      padding: 0.85rem 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      border-top: 1px solid var(--dark-border);
+      min-height: 52px;
+      transition: all 0.3s ease;
+    }
+    .status-bar.idle     { color: var(--text-secondary); }
+    .status-bar.scanning { color: var(--warning); }
+    .status-bar.detected { color: var(--secondary); }
+    .status-bar.matched  { color: var(--success); background: rgba(16,185,129,0.08); }
+    .status-bar.failed   { color: var(--danger);  background: rgba(239,68,68,0.08); }
+    .right-panel { display: flex; flex-direction: column; gap: 1.25rem; }
+    .input-card {
+      background: var(--card-gradient);
+      border: 1px solid var(--dark-border);
+      border-radius: var(--radius-lg);
+      padding: 1.5rem;
+    }
+    .result-card {
+      background: var(--card-gradient);
+      border: 1px solid var(--dark-border);
+      border-radius: var(--radius-lg);
+      padding: 1.5rem;
+      display: none;
+    }
+    .result-card.show { display: block; animation: fadeIn 0.4s ease; }
+    .tick-circle {
+      width: 90px; height: 90px;
+      border-radius: 50%;
+      background: rgba(16,185,129,0.15);
+      border: 3px solid var(--success);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2.8rem;
+      margin: 0 auto 1rem;
+      animation: tickPop 0.5s cubic-bezier(0.175,0.885,0.32,1.275);
+    }
+    .tick-circle.fail {
+      background: rgba(239,68,68,0.15);
+      border-color: var(--danger);
+    }
+    @keyframes tickPop {
+      0%   { transform: scale(0); opacity: 0; }
+      70%  { transform: scale(1.15); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .result-name { font-size: 1.3rem; font-weight: 800; text-align: center; margin-bottom: 0.25rem; }
+    .result-roll { text-align: center; color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1.25rem; }
+    .result-details {
+      background: rgba(15,23,42,0.6);
+      border-radius: var(--radius);
+      padding: 1rem;
+      display: flex; flex-direction: column; gap: 0.6rem;
+    }
+    .result-row { display: flex; justify-content: space-between; font-size: 0.88rem; }
+    .result-row .label { color: var(--text-muted); }
+    .result-row .value { font-weight: 600; }
+    .conf-bar-wrap { margin-top: 0.75rem; }
+    .conf-label { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.3rem; }
+    .conf-bar { height: 6px; background: var(--dark-border); border-radius: 999px; overflow: hidden; }
+    .conf-fill { height: 100%; border-radius: 999px; transition: width 0.6s ease; background: linear-gradient(90deg, var(--success), #34d399); }
+    .instructions {
+      background: rgba(79,70,229,0.06);
+      border: 1px solid rgba(79,70,229,0.2);
+      border-radius: var(--radius);
+      padding: 1rem;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      line-height: 1.9;
+    }
+    @media (max-width: 900px) { .face-layout { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div id="navbar-placeholder"></div>
+  <div class="layout">
+    <div id="sidebar-placeholder"></div>
+    <main class="main-content">
+
+      <div class="page-header fade-in">
+        <div>
+          <h1 class="page-title">📸 Face Attendance</h1>
+          <p class="page-subtitle">Real-time face recognition — look at the camera to mark attendance</p>
+        </div>
+        <div class="flex gap-2 items-center">
+          <span id="fr-status-badge" class="badge badge-warning">Checking...</span>
+          <a href="attendance.html" class="btn btn-outline btn-sm">📋 Manual</a>
+        </div>
+      </div>
+
+      <div class="face-layout">
+
+        <!-- Camera -->
+        <div class="camera-box fade-in">
+          <div class="camera-header">
+            <div class="flex items-center gap-2">
+              <span id="cam-dot" class="live-dot" style="display:none"></span>
+              <h3 style="font-size:1rem;font-weight:700">Live Camera</h3>
+            </div>
+            <div class="flex gap-2">
+              <button id="start-btn" class="btn btn-primary btn-sm" onclick="startCamera()">📷 Start Camera</button>
+              <button id="stop-btn"  class="btn btn-secondary btn-sm hidden" onclick="stopCamera()">⏹ Stop</button>
+            </div>
+          </div>
+
+          <div class="camera-wrapper">
+            <div class="camera-placeholder" id="cam-placeholder">
+              <div class="cam-icon">📷</div>
+              <div>Click <strong>Start Camera</strong> to begin</div>
+              <div style="font-size:0.8rem;color:var(--text-muted)">Enter roll number first →</div>
+            </div>
+            <video id="webcam" autoplay playsinline muted></video>
+            <canvas id="overlay-canvas"></canvas>
+          </div>
+
+          <div class="status-bar idle" id="status-bar">
+            <span id="status-icon">💤</span>
+            <span id="status-text">Camera not started</span>
+          </div>
+        </div>
+
+        <!-- Right Panel -->
+        <div class="right-panel">
+
+          <div class="input-card fade-in">
+            <h3 style="font-size:1rem;font-weight:700;margin-bottom:1rem">🎯 Student Verification</h3>
+
+            <div class="form-group">
+              <label class="form-label">Roll Number *</label>
+              <input type="text" id="roll-input" class="form-control"
+                     placeholder="e.g. 23KB1A3080" oninput="onRollInput()" />
+            </div>
+
+            <div id="student-preview" style="display:none;margin-bottom:1rem">
+              <div style="background:rgba(79,70,229,0.08);border:1px solid rgba(79,70,229,0.2);
+                          border-radius:8px;padding:0.75rem;font-size:0.88rem">
+                <div style="font-weight:700" id="preview-name"></div>
+                <div style="color:var(--text-muted);font-size:0.8rem" id="preview-dept"></div>
+              </div>
+            </div>
+
+            <button id="verify-btn" class="btn btn-primary btn-block" onclick="startVerification()" disabled>
+              🔍 Start Verification
+            </button>
+            <button id="reset-btn" class="btn btn-secondary btn-block hidden mt-2" onclick="resetAll()">
+              🔄 Verify Another Student
+            </button>
+          </div>
+
+          <!-- Result Card -->
+          <div class="result-card" id="result-card">
+            <div id="tick-circle" class="tick-circle">✅</div>
+            <div class="result-name" id="result-name">—</div>
+            <div class="result-roll" id="result-roll">—</div>
+            <div class="result-details">
+              <div class="result-row"><span class="label">Date</span><span class="value" id="r-date">—</span></div>
+              <div class="result-row"><span class="label">Time</span><span class="value" id="r-time">—</span></div>
+              <div class="result-row"><span class="label">Status</span><span class="value" id="r-status">—</span></div>
+              <div class="result-row"><span class="label">Method</span><span class="value">Face Recognition</span></div>
+            </div>
+            <div class="conf-bar-wrap">
+              <div class="conf-label"><span>Confidence</span><span id="conf-pct">—</span></div>
+              <div class="conf-bar"><div class="conf-fill" id="conf-fill" style="width:0%"></div></div>
+            </div>
+          </div>
+
+          <div class="instructions fade-in">
+            <strong>How to use:</strong>
+            <ol>
+              <li>Enter the student's roll number</li>
+              <li>Click <strong>Start Camera</strong></li>
+              <li>Click <strong>Start Verification</strong></li>
+              <li>Look directly at the camera</li>
+              <li>Hold still — <strong style="color:var(--success)">green ✅</strong> appears when verified</li>
+            </ol>
+          </div>
+
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <div id="toast-container" class="toast-container"></div>
+  <script src="js/api.js"></script>
+  <script src="js/layout.js"></script>
+  <script>
+    UI.requireAuth();
+    renderLayout('face');
+
+    const API = window.API_BASE || 'http://localhost:8000';
+    const video  = document.getElementById('webcam');
+    const canvas = document.getElementById('overlay-canvas');
+    const ctx    = canvas.getContext('2d');
+
+    let stream         = null;
+    let verifyInterval = null;
+    let isVerifying    = false;
+    let matchHold      = 0;
+    const HOLD_NEEDED  = 3;    // consecutive matches before marking
+    const INTERVAL_MS  = 600;  // ms between frames sent to API
+
+    // ── FR status check ────────────────────────────────────────────────────────
+    (async () => {
+      try {
+        const r = await fetch(API + '/api/face/status', {
+          headers: { Authorization: 'Bearer ' + Auth.getToken() }
+        });
+        const d = await r.json();
+        const b = document.getElementById('fr-status-badge');
+        if (d.face_recognition_available && d.encodings_found) {
+          b.className = 'badge badge-success';
+          b.textContent = 'FR Ready (' + d.enrolled_students + ' students)';
+        } else if (!d.face_recognition_available) {
+          b.className = 'badge badge-warning';
+          b.textContent = 'face_recognition not installed';
+        } else {
+          b.className = 'badge badge-warning';
+          b.textContent = 'No encodings — train model first';
+        }
+      } catch(e) {}
+    })();
+
+    // ── Roll input → student preview ───────────────────────────────────────────
+    let previewTimer = null;
+    function onRollInput() {
+      const roll = document.getElementById('roll-input').value.trim();
+      document.getElementById('verify-btn').disabled = !roll;
+      document.getElementById('student-preview').style.display = 'none';
+      clearTimeout(previewTimer);
+      if (!roll) return;
+      previewTimer = setTimeout(async () => {
+        try {
+          const s = await StudentsAPI.get(roll);
+          if (s) {
+            document.getElementById('preview-name').textContent = s.name;
+            document.getElementById('preview-dept').textContent =
+              (s.department ? s.department.name : '') + (s.year ? ' · Year ' + s.year : '');
+            document.getElementById('student-preview').style.display = 'block';
+          }
+        } catch(e) {}
+      }, 400);
+    }
+
+    // ── Camera ─────────────────────────────────────────────────────────────────
+    async function startCamera() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' }
+        });
+        video.srcObject = stream;
+        video.style.display = 'block';
+        canvas.style.display = 'block';
+        document.getElementById('cam-placeholder').style.display = 'none';
+        document.getElementById('cam-dot').style.display = 'inline-block';
+        document.getElementById('start-btn').classList.add('hidden');
+        document.getElementById('stop-btn').classList.remove('hidden');
+        setStatus('idle', '💤', 'Camera ready — click Verify to start');
+        UI.showToast('Camera started', 'success');
+      } catch(e) {
+        UI.showToast('Camera error: ' + e.message, 'error');
+      }
+    }
+
+    function stopCamera() {
+      stopVerification();
+      if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+      video.style.display = 'none';
+      canvas.style.display = 'none';
+      document.getElementById('cam-placeholder').style.display = 'flex';
+      document.getElementById('cam-dot').style.display = 'none';
+      document.getElementById('start-btn').classList.remove('hidden');
+      document.getElementById('stop-btn').classList.add('hidden');
+      clearCanvas();
+      setStatus('idle', '💤', 'Camera stopped');
+    }
+
+    // ── Verification ───────────────────────────────────────────────────────────
+    function startVerification() {
+      const roll = document.getElementById('roll-input').value.trim();
+      if (!roll)   { UI.showToast('Enter roll number first', 'warning'); return; }
+      if (!stream) { UI.showToast('Start camera first', 'warning'); return; }
+      isVerifying = true;
+      matchHold   = 0;
+      document.getElementById('verify-btn').disabled = true;
+      document.getElementById('result-card').classList.remove('show');
+      setStatus('scanning', '🔍', 'Scanning — look at the camera...');
+      verifyInterval = setInterval(sendFrame, INTERVAL_MS);
+    }
+
+    function stopVerification() {
+      isVerifying = false;
+      clearInterval(verifyInterval);
+      verifyInterval = null;
+    }
+
+    function resetAll() {
+      stopVerification();
+      matchHold = 0;
+      clearCanvas();
+      document.getElementById('result-card').classList.remove('show');
+      document.getElementById('reset-btn').classList.add('hidden');
+      document.getElementById('verify-btn').disabled = false;
+      document.getElementById('roll-input').value = '';
+      document.getElementById('student-preview').style.display = 'none';
+      setStatus('idle', '💤', 'Ready — enter roll number');
+    }
+
+    // ── Send frame to API ──────────────────────────────────────────────────────
+    async function sendFrame() {
+      if (!isVerifying || !stream || video.readyState < 2) return;
+
+      // Sync canvas size
+      canvas.width  = video.videoWidth  || 640;
+      canvas.height = video.videoHeight || 480;
+
+      // Capture un-mirrored frame for API
+      const tmp  = document.createElement('canvas');
+      tmp.width  = canvas.width;
+      tmp.height = canvas.height;
+      tmp.getContext('2d').drawImage(video, 0, 0);
+
+      const roll = document.getElementById('roll-input').value.trim();
+
+      tmp.toBlob(async (blob) => {
+        if (!blob) return;
+        const fd = new FormData();
+        fd.append('frame', blob, 'frame.jpg');
+        fd.append('roll_no', roll);
+
+        try {
+          const res = await fetch(API + '/api/face/verify', {
+            method: 'POST',
+            headers: { Authorization: 'Bearer ' + Auth.getToken() },
+            body: fd
+          });
+          const data = await res.json();
+          handleVerifyResult(data, roll);
+        } catch(e) {
+          setStatus('failed', '❌', 'API error: ' + e.message);
+        }
+      }, 'image/jpeg', 0.85);
+    }
+
+    // ── Handle API result → draw overlay ──────────────────────────────────────
+    function handleVerifyResult(data, roll) {
+      clearCanvas();
+
+      if (!data.detected) {
+        matchHold = 0;
+        setStatus('scanning', '🔍', 'No face detected — position your face in frame');
+        return;
+      }
+
+      const box = data.box;
+      // Mirror the x coordinate for display (video is CSS-mirrored)
+      const mx = canvas.width - box.x - box.w;
+
+      if (data.matched) {
+        matchHold++;
+        const pct = Math.min(100, Math.round(matchHold / HOLD_NEEDED * 100));
+        setStatus('detected', '👤', 'Face detected — hold still... ' + pct + '%');
+        drawFaceBox(mx, box.y, box.w, box.h, '#10b981', data.confidence);
+
+        if (matchHold >= HOLD_NEEDED) {
+          stopVerification();
+          drawSuccessTick(mx, box.y, box.w, box.h);
+          setStatus('matched', '✅', 'Identity verified! Marking attendance...');
+          markAttendance(roll, data.confidence);
+        }
+      } else {
+        matchHold = 0;
+        const msg = data.message || 'Face not recognized';
+        setStatus('failed', '❌', msg);
+        drawFaceBox(mx, box.y, box.w, box.h, '#ef4444', null);
+      }
+    }
+
+    // ── Canvas drawing ─────────────────────────────────────────────────────────
+    function clearCanvas() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function drawFaceBox(x, y, w, h, color, confidence) {
+      ctx.save();
+      // Glow
+      ctx.shadowColor = color;
+      ctx.shadowBlur  = 16;
+      ctx.strokeStyle = color;
+      ctx.lineWidth   = 3;
+      ctx.strokeRect(x, y, w, h);
+      ctx.restore();
+
+      // Corner brackets
+      const cs = 20;
+      ctx.strokeStyle = color;
+      ctx.lineWidth   = 4;
+      ctx.lineCap     = 'round';
+      // TL
+      ctx.beginPath(); ctx.moveTo(x, y + cs); ctx.lineTo(x, y); ctx.lineTo(x + cs, y); ctx.stroke();
+      // TR
+      ctx.beginPath(); ctx.moveTo(x + w - cs, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + cs); ctx.stroke();
+      // BL
+      ctx.beginPath(); ctx.moveTo(x, y + h - cs); ctx.lineTo(x, y + h); ctx.lineTo(x + cs, y + h); ctx.stroke();
+      // BR
+      ctx.beginPath(); ctx.moveTo(x + w - cs, y + h); ctx.lineTo(x + w, y + h); ctx.lineTo(x + w, y + h - cs); ctx.stroke();
+
+      // Confidence label
+      if (confidence !== null && confidence !== undefined) {
+        const label = (confidence * 100).toFixed(1) + '%';
+        ctx.fillStyle = color;
+        ctx.font = 'bold 14px Inter, sans-serif';
+        ctx.fillText(label, x + 4, y - 8);
+      }
+    }
+
+    function drawSuccessTick(x, y, w, h) {
+      clearCanvas();
+      // Green box
+      drawFaceBox(x, y, w, h, '#10b981', null);
+
+      // Big ✓ inside box
+      const cx = x + w / 2;
+      const cy = y + h / 2;
+      const r  = Math.min(w, h) * 0.28;
+
+      // Circle background
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(16,185,129,0.25)';
+      ctx.fill();
+      ctx.strokeStyle = '#10b981';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      // Checkmark
+      ctx.strokeStyle = '#10b981';
+      ctx.lineWidth   = 4;
+      ctx.lineCap     = 'round';
+      ctx.lineJoin    = 'round';
+      ctx.beginPath();
+      ctx.moveTo(cx - r * 0.45, cy);
+      ctx.lineTo(cx - r * 0.1,  cy + r * 0.4);
+      ctx.lineTo(cx + r * 0.5,  cy - r * 0.35);
+      ctx.stroke();
+
+      // "VERIFIED" text below box
+      ctx.fillStyle   = '#10b981';
+      ctx.font        = 'bold 16px Inter, sans-serif';
+      ctx.textAlign   = 'center';
+      ctx.fillText('✓ VERIFIED', cx, y + h + 22);
+      ctx.textAlign   = 'left';
+    }
+
+    // ── Mark attendance via API ────────────────────────────────────────────────
+    async function markAttendance(roll, confidence) {
+      try {
+        const fd = new FormData();
+        fd.append('roll_no', roll);
+        fd.append('confidence', confidence.toString());
+
+        const res = await fetch(API + '/api/face/mark-verified', {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + Auth.getToken() },
+          body: fd
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+          showResultCard(data, confidence);
+          UI.showToast('Attendance marked for ' + data.name, 'success');
+        } else {
+          setStatus('failed', '❌', data.detail || 'Failed to mark attendance');
+          UI.showToast(data.detail || 'Error marking attendance', 'error');
+          document.getElementById('verify-btn').disabled = false;
+        }
+      } catch(e) {
+        setStatus('failed', '❌', 'Network error');
+        UI.showToast('Network error: ' + e.message, 'error');
+      }
+    }
+
+    // ── Show result card ───────────────────────────────────────────────────────
+    function showResultCard(record, confidence) {
+      const alreadyMarked = record.time && record.date;
+      document.getElementById('tick-circle').className = 'tick-circle';
+      document.getElementById('tick-circle').textContent = '✅';
+      document.getElementById('result-name').textContent = record.name;
+      document.getElementById('result-roll').textContent = 'Roll No: ' + record.roll_no;
+      document.getElementById('r-date').textContent   = record.date;
+      document.getElementById('r-time').textContent   = record.time ? record.time.substring(0,5) : '—';
+      document.getElementById('r-status').innerHTML   =
+        '<span class="badge badge-success">' + record.status + '</span>';
+      const pct = Math.round(confidence * 100);
+      document.getElementById('conf-pct').textContent  = pct + '%';
+      document.getElementById('conf-fill').style.width = pct + '%';
+      document.getElementById('result-card').classList.add('show');
+      document.getElementById('reset-btn').classList.remove('hidden');
+      setStatus('matched', '✅', 'Attendance marked successfully!');
+    }
+
+    // ── Status helper ──────────────────────────────────────────────────────────
+    function setStatus(cls, icon, text) {
+      const bar = document.getElementById('status-bar');
+      bar.className = 'status-bar ' + cls;
+      document.getElementById('status-icon').textContent = icon;
+      document.getElementById('status-text').textContent = text;
+    }
+  </script>
+</body>
+</html>

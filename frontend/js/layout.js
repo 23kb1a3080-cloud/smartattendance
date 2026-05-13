@@ -18,6 +18,7 @@ function renderLayout(activePage) {
       <ul class="navbar-nav">
         <li><a href="dashboard.html" class="${activePage==='dashboard'?'active':''}">📊 Dashboard</a></li>
         <li><a href="students.html" class="${activePage==='students'?'active':''}">👥 Students</a></li>
+        <li><a href="face-attendance.html" class="${activePage==='face'?'active':''}">📸 Face Attendance</a></li>
         <li><a href="attendance.html" class="${activePage==='attendance'?'active':''}">📋 Attendance</a></li>
         <li><a href="reports.html" class="${activePage==='reports'?'active':''}">📈 Reports</a></li>
       </ul>
@@ -40,6 +41,9 @@ function renderLayout(activePage) {
       </a></li>
       <li><a href="students.html" class="${activePage==='students'?'active':''}">
         <span class="icon">👥</span> Students
+      </a></li>
+      <li><a href="face-attendance.html" class="${activePage==='face'?'active':''}">
+        <span class="icon">📸</span> Face Attendance
       </a></li>
       <li><a href="attendance.html" class="${activePage==='attendance'?'active':''}">
         <span class="icon">📋</span> Attendance
