@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>System Logs — Smart Attendance</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="navbar-placeholder"></div>
+  <div class="layout">
+    <div id="sidebar-placeholder"></div>
+    <main class="main-content">
+
+      <div class="page-header fade-in">
+        <div>
+          <h1 class="page-title">📝 System Logs</h1>
+          <p class="page-subtitle">Audit trail of all system events</p>
+        </div>
+        <button class="btn btn-outline" onclick="loadLogs()">🔄 Refresh</button>
+      </div>
+
+      <div class="card fade-in">
+        <div class="card-header">
+          <h3 class="card-title">Recent Events</h3>
+          <span class="badge badge-info" id="log-count">0 events</span>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Timestamp</th>
+                <th>Event</th>
+                <th>Roll No</th>
+                <th>Description</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="logs-table">
+              <tr><td colspan="6" class="text-center p-3"><div class="spinner" style="margin:auto"></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div id="toast-container" class="toast-container"></div>
+  <script src="js/api.js"></script>
+  <script src="js/layout.js"></script>
+  <script>
+    UI.requireAuth();
+    renderLayout('logs');
+
+    const eventIcons = {
+      attendance_marked: '✅',
+      student_registered: '👤',
+      login: '🔐',
+      logout: '🚪',
+      error: '❌',
+    };
+
+    async function loadLogs() {
+      try {
+        const logs = await DashboardAPI.logs(100) || [];
+        document.getElementById('log-count').textContent = `${logs.length} events`;
+        const tbody = document.getElementById('logs-table');
+        if (logs.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted p-3">No logs found</td></tr>';
+          return;
+        }
+        tbody.innerHTML = logs.map((l, i) => `
+          <tr>
+            <td class="text-muted">${i + 1}</td>
+            <td style="font-size:0.82rem">${new Date(l.timestamp).toLocaleString('en-IN')}</td>
+            <td>
+              <span class="badge badge-primary">
+                ${eventIcons[l.event_type] || '📌'} ${l.event_type}
+              </span>
+            </td>
+            <td>${l.roll_no ? `<span class="badge badge-info">${l.roll_no}</span>` : '—'}</td>
+            <td class="truncate" style="max-width:250px">${l.description || '—'}</td>
+            <td>
+              <span class="badge ${l.status === 'success' ? 'badge-success' : 'badge-danger'}">
+                ${l.status || '—'}
+              </span>
+            </td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        UI.showToast('Failed to load logs: ' + err.message, 'error');
+      }
+    }
+
+    loadLogs();
+  </script>
+</body>
+</html>

@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard — Smart Attendance</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <div id="navbar-placeholder"></div>
+  <div class="layout">
+    <div id="sidebar-placeholder"></div>
+    <main class="main-content">
+
+      <!-- Page Header -->
+      <div class="page-header fade-in">
+        <div>
+          <h1 class="page-title">📊 Dashboard</h1>
+          <p class="page-subtitle" id="today-date">Loading...</p>
+        </div>
+        <div class="flex gap-2">
+          <button class="btn btn-outline btn-sm" onclick="loadDashboard()">🔄 Refresh</button>
+          <button class="btn btn-primary btn-sm" onclick="window.location.href='attendance.html'">
+            ➕ Mark Attendance
+          </button>
+        </div>
+      </div>
+
+      <!-- Live Status Bar -->
+      <div class="alert alert-info mb-3 fade-in" id="live-status">
+        <div class="live-dot"></div>
+        <span>Connecting to live feed...</span>
+      </div>
+
+      <!-- Stat Cards -->
+      <div class="grid grid-4 gap-3 mb-4" id="stats-grid">
+        <div class="stat-card" style="--accent-color: var(--primary)">
+          <div class="stat-icon">👥</div>
+          <div class="stat-info">
+            <div class="stat-value" id="stat-total">—</div>
+            <div class="stat-label">Total Students</div>
+          </div>
+        </div>
+        <div class="stat-card" style="--accent-color: var(--success)">
+          <div class="stat-icon">✅</div>
+          <div class="stat-info">
+            <div class="stat-value" id="stat-present">—</div>
+            <div class="stat-label">Present Today</div>
+          </div>
+        </div>
+        <div class="stat-card" style="--accent-color: var(--danger)">
+          <div class="stat-icon">❌</div>
+          <div class="stat-info">
+            <div class="stat-value" id="stat-absent">—</div>
+            <div class="stat-label">Absent Today</div>
+          </div>
+        </div>
+        <div class="stat-card" style="--accent-color: var(--warning)">
+          <div class="stat-icon">📊</div>
+          <div class="stat-info">
+            <div class="stat-value" id="stat-rate">—</div>
+            <div class="stat-label">Attendance Rate</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts + Recent -->
+      <div class="grid grid-2 gap-3 mb-4">
+        <!-- Weekly Chart -->
+        <div class="card fade-in">
+          <div class="card-header">
+            <h3 class="card-title">📅 Weekly Attendance</h3>
+          </div>
+          <div class="chart-container">
+            <canvas id="weekly-chart"></canvas>
+          </div>
+        </div>
+
+        <!-- Donut Chart -->
+        <div class="card fade-in">
+          <div class="card-header">
+            <h3 class="card-title">🎯 Today's Overview</h3>
+          </div>
+          <div class="chart-container">
+            <canvas id="donut-chart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Attendance + Top Students -->
+      <div class="grid grid-2 gap-3">
+        <!-- Recent Attendance -->
+        <div class="card fade-in">
+          <div class="card-header">
+            <h3 class="card-title">🕐 Recent Attendance</h3>
+            <a href="attendance.html" class="btn btn-outline btn-sm">View All</a>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Roll No</th>
+                  <th>Name</th>
+                  <th>Time</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="recent-table">
+                <tr><td colspan="4" class="text-center text-muted p-3">Loading...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Top Students -->
+        <div class="card fade-in">
+          <div class="card-header">
+            <h3 class="card-title">🏆 Top Attendance</h3>
+          </div>
+          <div id="top-students-list">
+            <div class="text-center text-muted p-3">Loading...</div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <div id="toast-container" class="toast-container"></div>
+  <script src="js/api.js"></script>
+  <script src="js/layout.js"></script>
+  <script>
+    UI.requireAuth();
+    renderLayout('dashboard');
+
+    // Today's date
+    document.getElementById('today-date').textContent =
+      new Date().toLocaleDateString('en-IN', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+
+    let weeklyChart = null;
+    let donutChart = null;
+
+    async function loadDashboard() {
+      try {
+        const data = await DashboardAPI.summary();
+        if (!data) return;
+
+        // Stats
+        document.getElementById('stat-total').textContent   = data.stats.total_students;
+        document.getElementById('stat-present').textContent = data.stats.present_today;
+        document.getElementById('stat-absent').textContent  = data.stats.absent_today;
+        document.getElementById('stat-rate').textContent    = data.stats.attendance_rate + '%';
+
+        // Recent table
+        const tbody = document.getElementById('recent-table');
+        if (data.recent_attendance.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted p-3">No attendance today</td></tr>';
+        } else {
+          tbody.innerHTML = data.recent_attendance.map(r => `
+            <tr>
+              <td><span class="badge badge-primary">${r.roll_no}</span></td>
+              <td>${r.name}</td>
+              <td>${UI.formatTime(r.time)}</td>
+              <td><span class="badge badge-success">${r.status}</span></td>
+            </tr>
+          `).join('');
+        }
+
+        // Top students
+        const topEl = document.getElementById('top-students-list');
+        if (data.top_students.length === 0) {
+          topEl.innerHTML = '<div class="text-center text-muted p-3">No data yet</div>';
+        } else {
+          topEl.innerHTML = data.top_students.map((s, i) => `
+            <div class="flex items-center justify-between p-2" style="border-bottom:1px solid var(--dark-border)">
+              <div class="flex items-center gap-2">
+                <span style="font-size:1.2rem">${['🥇','🥈','🥉','4️⃣','5️⃣'][i]}</span>
+                <div>
+                  <div style="font-weight:600">${s.name}</div>
+                  <div class="text-muted" style="font-size:0.8rem">${s.roll_no}</div>
+                </div>
+              </div>
+              <span class="badge badge-success">${s.count} days</span>
+            </div>
+          `).join('');
+        }
+
+        // Weekly Chart
+        const labels = data.weekly_data.map(d => {
+          const dt = new Date(d.date);
+          return dt.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric' });
+        });
+        const counts = data.weekly_data.map(d => d.count);
+
+        if (weeklyChart) weeklyChart.destroy();
+        weeklyChart = new Chart(document.getElementById('weekly-chart'), {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [{
+              label: 'Students Present',
+              data: counts,
+              backgroundColor: 'rgba(79, 70, 229, 0.7)',
+              borderColor: '#4f46e5',
+              borderWidth: 2,
+              borderRadius: 6,
+            }]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(51,65,85,0.5)' } },
+              y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(51,65,85,0.5)' }, beginAtZero: true }
+            }
+          }
+        });
+
+        // Donut Chart
+        if (donutChart) donutChart.destroy();
+        donutChart = new Chart(document.getElementById('donut-chart'), {
+          type: 'doughnut',
+          data: {
+            labels: ['Present', 'Absent'],
+            datasets: [{
+              data: [data.stats.present_today, data.stats.absent_today],
+              backgroundColor: ['rgba(16,185,129,0.8)', 'rgba(239,68,68,0.8)'],
+              borderColor: ['#10b981', '#ef4444'],
+              borderWidth: 2,
+            }]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+              legend: { labels: { color: '#94a3b8' } }
+            },
+            cutout: '65%'
+          }
+        });
+
+      } catch (err) {
+        UI.showToast('Failed to load dashboard: ' + err.message, 'error');
+      }
+    }
+
+    // WebSocket live feed
+    const live = new LiveAttendance((msg) => {
+      const el = document.getElementById('live-status');
+      if (msg.type === 'connected') {
+        el.className = 'alert alert-success mb-3';
+        el.innerHTML = '<div class="live-dot"></div><span>Live feed connected — attendance updates in real-time</span>';
+      } else if (msg.type === 'attendance_update') {
+        UI.showToast(`New attendance: ${msg.data.name}`, 'success');
+        loadDashboard();
+      }
+    });
+    live.connect();
+
+    loadDashboard();
+    // Auto-refresh every 30 seconds
+    setInterval(loadDashboard, 30000);
+  </script>
+</body>
+</html>

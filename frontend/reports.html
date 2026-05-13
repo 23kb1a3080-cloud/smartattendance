@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reports — Smart Attendance</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <div id="navbar-placeholder"></div>
+  <div class="layout">
+    <div id="sidebar-placeholder"></div>
+    <main class="main-content">
+
+      <div class="page-header fade-in">
+        <div>
+          <h1 class="page-title">📈 Reports</h1>
+          <p class="page-subtitle">Weekly and monthly attendance analytics</p>
+        </div>
+        <button class="btn btn-primary" onclick="loadReports()">🔄 Refresh</button>
+      </div>
+
+      <!-- Weekly Report Table -->
+      <div class="card fade-in mb-4">
+        <div class="card-header">
+          <h3 class="card-title">📅 Weekly Report (Last 7 Days)</h3>
+          <button class="btn btn-outline btn-sm" onclick="exportWeeklyReport()">📥 Export</button>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Total Students</th>
+                <th>Present</th>
+                <th>Absent</th>
+                <th>Rate</th>
+                <th>Progress</th>
+              </tr>
+            </thead>
+            <tbody id="weekly-table">
+              <tr><td colspan="6" class="text-center p-3"><div class="spinner" style="margin:auto"></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Charts -->
+      <div class="grid grid-2 gap-3 fade-in">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">📊 Attendance Trend</h3>
+          </div>
+          <div class="chart-container">
+            <canvas id="trend-chart"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">📉 Present vs Absent</h3>
+          </div>
+          <div class="chart-container">
+            <canvas id="compare-chart"></canvas>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <div id="toast-container" class="toast-container"></div>
+  <script src="js/api.js"></script>
+  <script src="js/layout.js"></script>
+  <script>
+    UI.requireAuth();
+    renderLayout('reports');
+
+    let trendChart = null;
+    let compareChart = null;
+    let reportData = null;
+
+    async function loadReports() {
+      try {
+        const data = await DashboardAPI.weeklyReport();
+        if (!data) return;
+        reportData = data;
+
+        const tbody = document.getElementById('weekly-table');
+        tbody.innerHTML = data.report.map(r => `
+          <tr>
+            <td><strong>${r.date}</strong></td>
+            <td>${r.total_students}</td>
+            <td><span class="text-success">${r.present}</span></td>
+            <td><span class="text-danger">${r.absent}</span></td>
+            <td>
+              <span class="badge ${r.rate >= 75 ? 'badge-success' : r.rate >= 50 ? 'badge-warning' : 'badge-danger'}">
+                ${r.rate}%
+              </span>
+            </td>
+            <td style="width:150px">
+              <div class="progress">
+                <div class="progress-bar" style="width:${r.rate}%"></div>
+              </div>
+            </td>
+          </tr>
+        `).join('');
+
+        const labels = data.report.map(r => {
+          const d = new Date(r.date);
+          return d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric' });
+        });
+
+        // Trend Chart
+        if (trendChart) trendChart.destroy();
+        trendChart = new Chart(document.getElementById('trend-chart'), {
+          type: 'line',
+          data: {
+            labels,
+            datasets: [{
+              label: 'Attendance Rate (%)',
+              data: data.report.map(r => r.rate),
+              borderColor: '#4f46e5',
+              backgroundColor: 'rgba(79,70,229,0.1)',
+              fill: true,
+              tension: 0.4,
+              pointBackgroundColor: '#4f46e5',
+              pointRadius: 5,
+            }]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { labels: { color: '#94a3b8' } } },
+            scales: {
+              x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(51,65,85,0.5)' } },
+              y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(51,65,85,0.5)' }, min: 0, max: 100 }
+            }
+          }
+        });
+
+        // Compare Chart
+        if (compareChart) compareChart.destroy();
+        compareChart = new Chart(document.getElementById('compare-chart'), {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [
+              {
+                label: 'Present',
+                data: data.report.map(r => r.present),
+                backgroundColor: 'rgba(16,185,129,0.7)',
+                borderColor: '#10b981',
+                borderWidth: 2,
+                borderRadius: 4,
+              },
+              {
+                label: 'Absent',
+                data: data.report.map(r => r.absent),
+                backgroundColor: 'rgba(239,68,68,0.7)',
+                borderColor: '#ef4444',
+                borderWidth: 2,
+                borderRadius: 4,
+              }
+            ]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { labels: { color: '#94a3b8' } } },
+            scales: {
+              x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(51,65,85,0.5)' } },
+              y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(51,65,85,0.5)' }, beginAtZero: true }
+            }
+          }
+        });
+
+      } catch (err) {
+        UI.showToast('Failed to load reports: ' + err.message, 'error');
+      }
+    }
+
+    function exportWeeklyReport() {
+      if (!reportData) return;
+      const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `weekly_report_${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      UI.showToast('Report exported!', 'success');
+    }
+
+    loadReports();
+  </script>
+</body>
+</html>

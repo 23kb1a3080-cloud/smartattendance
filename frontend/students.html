@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Students — Smart Attendance</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="navbar-placeholder"></div>
+  <div class="layout">
+    <div id="sidebar-placeholder"></div>
+    <main class="main-content">
+
+      <div class="page-header fade-in">
+        <div>
+          <h1 class="page-title">👥 Students</h1>
+          <p class="page-subtitle">Manage registered students</p>
+        </div>
+        <div class="flex gap-2 flex-wrap">
+          <div class="search-bar">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="search-input" placeholder="Search name or roll no..." oninput="filterStudents()" />
+          </div>
+          <button class="btn btn-primary" onclick="openAddModal()">➕ Add Student</button>
+        </div>
+      </div>
+
+      <div id="alert-area"></div>
+
+      <!-- Stats Row -->
+      <div class="grid grid-3 gap-3 mb-4 fade-in">
+        <div class="stat-card" style="--accent-color:var(--primary)">
+          <div class="stat-icon">👥</div>
+          <div class="stat-info">
+            <div class="stat-value" id="s-total">—</div>
+            <div class="stat-label">Total Students</div>
+          </div>
+        </div>
+        <div class="stat-card" style="--accent-color:var(--success)">
+          <div class="stat-icon">📸</div>
+          <div class="stat-info">
+            <div class="stat-value" id="s-face">—</div>
+            <div class="stat-label">Face Registered</div>
+          </div>
+        </div>
+        <div class="stat-card" style="--accent-color:var(--warning)">
+          <div class="stat-icon">⚠️</div>
+          <div class="stat-info">
+            <div class="stat-value" id="s-no-face">—</div>
+            <div class="stat-label">Pending Face</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Students Table -->
+      <div class="card fade-in">
+        <div class="card-header">
+          <h3 class="card-title">Student List</h3>
+          <span class="badge badge-primary" id="count-badge">0 students</span>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Roll No</th>
+                <th>Name</th>
+                <th>Department</th>
+                <th>Year</th>
+                <th>Face</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="students-table">
+              <tr><td colspan="8" class="text-center p-3"><div class="spinner" style="margin:auto"></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Add/Edit Student Modal -->
+  <div class="modal-overlay" id="student-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="modal-title">Add Student</h3>
+        <button class="modal-close" onclick="closeModal()">✕</button>
+      </div>
+      <form id="student-form">
+        <div class="grid grid-2 gap-2">
+          <div class="form-group">
+            <label class="form-label">Roll Number *</label>
+            <input type="text" id="f-roll" class="form-control" placeholder="e.g. 23KB1A3080" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Full Name *</label>
+            <input type="text" id="f-name" class="form-control" placeholder="Student name" required />
+          </div>
+        </div>
+        <div class="grid grid-2 gap-2">
+          <div class="form-group">
+            <label class="form-label">Email</label>
+            <input type="email" id="f-email" class="form-control" placeholder="student@college.com" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Phone</label>
+            <input type="text" id="f-phone" class="form-control" placeholder="10-digit number" />
+          </div>
+        </div>
+        <div class="grid grid-2 gap-2">
+          <div class="form-group">
+            <label class="form-label">Department</label>
+            <select id="f-dept" class="form-control">
+              <option value="">Select Department</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Year</label>
+            <select id="f-year" class="form-control">
+              <option value="">Select Year</option>
+              <option value="1">1st Year</option>
+              <option value="2">2nd Year</option>
+              <option value="3">3rd Year</option>
+              <option value="4">4th Year</option>
+            </select>
+          </div>
+        </div>
+        <div class="flex gap-2 mt-3">
+          <button type="submit" class="btn btn-primary flex-1" id="save-btn">💾 Save Student</button>
+          <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Face Upload Modal -->
+  <div class="modal-overlay" id="face-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>📸 Upload Face Image</h3>
+        <button class="modal-close" onclick="closeFaceModal()">✕</button>
+      </div>
+      <p class="text-muted mb-3">Upload a clear face photo for <strong id="face-roll-display"></strong></p>
+      <div class="form-group">
+        <label class="form-label">Select Image (JPG/PNG)</label>
+        <input type="file" id="face-file" class="form-control" accept="image/*" />
+      </div>
+      <button class="btn btn-primary btn-block" id="upload-btn" onclick="uploadFace()">
+        📤 Upload Image
+      </button>
+    </div>
+  </div>
+
+  <div id="toast-container" class="toast-container"></div>
+  <script src="js/api.js"></script>
+  <script src="js/layout.js"></script>
+  <script>
+    UI.requireAuth();
+    renderLayout('students');
+
+    let allStudents = [];
+    let editingRoll = null;
+    let faceRoll = null;
+
+    async function loadStudents() {
+      try {
+        allStudents = await StudentsAPI.list() || [];
+        renderTable(allStudents);
+        updateStats(allStudents);
+
+        // Load departments
+        const depts = await StudentsAPI.listDepartments() || [];
+        const sel = document.getElementById('f-dept');
+        sel.innerHTML = '<option value="">Select Department</option>' +
+          depts.map(d => `<option value="${d.id}">${d.name} (${d.code})</option>`).join('');
+      } catch (err) {
+        UI.showToast('Failed to load students: ' + err.message, 'error');
+      }
+    }
+
+    function updateStats(students) {
+      document.getElementById('s-total').textContent = students.length;
+      const faceCount = students.filter(s => s.face_registered).length;
+      document.getElementById('s-face').textContent = faceCount;
+      document.getElementById('s-no-face').textContent = students.length - faceCount;
+    }
+
+    function renderTable(students) {
+      document.getElementById('count-badge').textContent = `${students.length} students`;
+      const tbody = document.getElementById('students-table');
+      if (students.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted p-3">No students found</td></tr>';
+        return;
+      }
+      tbody.innerHTML = students.map((s, i) => `
+        <tr>
+          <td class="text-muted">${i + 1}</td>
+          <td><span class="badge badge-primary">${s.roll_no}</span></td>
+          <td><strong>${s.name}</strong></td>
+          <td>${s.department ? s.department.name : '<span class="text-muted">—</span>'}</td>
+          <td>${s.year ? s.year + ' Year' : '—'}</td>
+          <td>${s.face_registered
+            ? '<span class="badge badge-success">✅ Done</span>'
+            : '<span class="badge badge-warning">⚠️ Pending</span>'}</td>
+          <td>${s.is_active
+            ? '<span class="badge badge-success">Active</span>'
+            : '<span class="badge badge-danger">Inactive</span>'}</td>
+          <td>
+            <div class="flex gap-1">
+              <button class="btn btn-outline btn-sm" onclick="openEditModal('${s.roll_no}')">✏️</button>
+              <button class="btn btn-outline btn-sm" onclick="openFaceModal('${s.roll_no}')">📸</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteStudent('${s.roll_no}')">🗑️</button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function filterStudents() {
+      const q = document.getElementById('search-input').value.toLowerCase();
+      const filtered = allStudents.filter(s =>
+        s.name.toLowerCase().includes(q) || s.roll_no.toLowerCase().includes(q)
+      );
+      renderTable(filtered);
+    }
+
+    function openAddModal() {
+      editingRoll = null;
+      document.getElementById('modal-title').textContent = 'Add Student';
+      document.getElementById('student-form').reset();
+      document.getElementById('f-roll').disabled = false;
+      document.getElementById('student-modal').classList.add('active');
+    }
+
+    function openEditModal(rollNo) {
+      const s = allStudents.find(x => x.roll_no === rollNo);
+      if (!s) return;
+      editingRoll = rollNo;
+      document.getElementById('modal-title').textContent = 'Edit Student';
+      document.getElementById('f-roll').value = s.roll_no;
+      document.getElementById('f-roll').disabled = true;
+      document.getElementById('f-name').value = s.name;
+      document.getElementById('f-email').value = s.email || '';
+      document.getElementById('f-phone').value = s.phone || '';
+      document.getElementById('f-year').value = s.year || '';
+      if (s.department) document.getElementById('f-dept').value = s.department.id;
+      document.getElementById('student-modal').classList.add('active');
+    }
+
+    function closeModal() {
+      document.getElementById('student-modal').classList.remove('active');
+    }
+
+    function openFaceModal(rollNo) {
+      faceRoll = rollNo;
+      document.getElementById('face-roll-display').textContent = rollNo;
+      document.getElementById('face-modal').classList.add('active');
+    }
+
+    function closeFaceModal() {
+      document.getElementById('face-modal').classList.remove('active');
+    }
+
+    document.getElementById('student-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('save-btn');
+      UI.showLoading(btn, 'Saving...');
+      try {
+        const data = {
+          roll_no: document.getElementById('f-roll').value.trim(),
+          name: document.getElementById('f-name').value.trim(),
+          email: document.getElementById('f-email').value.trim() || null,
+          phone: document.getElementById('f-phone').value.trim() || null,
+          department_id: document.getElementById('f-dept').value ? parseInt(document.getElementById('f-dept').value) : null,
+          year: document.getElementById('f-year').value ? parseInt(document.getElementById('f-year').value) : null,
+        };
+
+        if (editingRoll) {
+          await StudentsAPI.update(editingRoll, data);
+          UI.showToast('Student updated!', 'success');
+        } else {
+          await StudentsAPI.create(data);
+          UI.showToast('Student added!', 'success');
+        }
+        closeModal();
+        loadStudents();
+      } catch (err) {
+        UI.showToast(err.message, 'error');
+      } finally {
+        UI.hideLoading(btn);
+      }
+    });
+
+    async function deleteStudent(rollNo) {
+      if (!confirm(`Delete student ${rollNo}? This cannot be undone.`)) return;
+      try {
+        await StudentsAPI.delete(rollNo);
+        UI.showToast('Student deleted', 'success');
+        loadStudents();
+      } catch (err) {
+        UI.showToast(err.message, 'error');
+      }
+    }
+
+    async function uploadFace() {
+      const file = document.getElementById('face-file').files[0];
+      if (!file) { UI.showToast('Please select an image', 'warning'); return; }
+      const btn = document.getElementById('upload-btn');
+      UI.showLoading(btn, 'Uploading...');
+      try {
+        await StudentsAPI.uploadFace(faceRoll, file);
+        UI.showToast('Face image uploaded!', 'success');
+        closeFaceModal();
+        loadStudents();
+      } catch (err) {
+        UI.showToast(err.message, 'error');
+      } finally {
+        UI.hideLoading(btn);
+      }
+    }
+
+    loadStudents();
+  </script>
+</body>
+</html>

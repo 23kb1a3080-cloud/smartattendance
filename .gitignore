@@ -169,6 +169,21 @@ logs/
 *.bak
 *.backup
 
+# Test databases
+test_attendance.db
+
+# Docker
+.docker/
+
+# Node (if any frontend tooling added)
+node_modules/
+npm-debug.log
+
+# Environment files (keep .env.example, ignore .env)
+backend/.env
+.env.local
+.env.production
+
 # Face images (optional - you may want to include sample dataset)
 # Uncomment if you don't want to include face images in repository
 # dataset/*/
